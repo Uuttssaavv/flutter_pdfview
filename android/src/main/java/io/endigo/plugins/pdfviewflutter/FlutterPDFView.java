@@ -3,7 +3,7 @@ package io.endigo.plugins.pdfviewflutter;
 import android.content.Context;
 import android.view.View;
 import android.net.Uri;
-import android.graphics.Color;
+
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
@@ -11,9 +11,14 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.platform.PlatformView;
 
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+
 
 import com.github.barteksc.pdfviewer.PDFView;
 import com.github.barteksc.pdfviewer.PDFView.Configurator;
@@ -30,12 +35,9 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
 
     @SuppressWarnings("unchecked")
     FlutterPDFView(Context context, BinaryMessenger messenger, int id, Map<String, Object> params) {
-        System.out.println(params);
-        System.out.println("Hello, World!");
-
         pdfView = new PDFView(context, null);
         final boolean preventLinkNavigation = getBoolean(params, "preventLinkNavigation");
-        pdfView.setBackgroundColor(Color.parseColor(getString(params, "backgroundColor")));
+
         methodChannel = new MethodChannel(messenger, "plugins.endigo.io/pdfview_" + id);
         methodChannel.setMethodCallHandler(this);
 
@@ -52,7 +54,6 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
         }
 
         if (config != null) {
-           
             config
                     .enableSwipe(getBoolean(params, "enableSwipe"))
                     .swipeHorizontal(getBoolean(params, "swipeHorizontal"))
@@ -61,11 +62,37 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
                     .autoSpacing(getBoolean(params, "autoSpacing"))
                     .pageFling(getBoolean(params, "pageFling"))
                     .pageSnap(getBoolean(params, "pageSnap"))
-                    .spacing(getInt(params,"spacingPx"))
-                    // .setBackground(Color.valueOf(0xffff0000))
-                    .enableAntialiasing(true)
-                    // .onDraw(this)
                     .pageFitPolicy(getFitPolicy(params))
+                    .onDrawAll(
+        new OnDrawListener() {
+        @Override
+        public void onLayerDrawn(Canvas canvas, float pageWidth, float pageHeight, int page) {
+            Paint paint = new Paint();
+            paint.setAntiAlias(true);
+            paint.setStrokeWidth(6f);
+            paint.setColor(Color.BLACK);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+
+            if(!map.containsKey(page)){
+                System.out.println( "Page: "+page+" | Height: "+pageHeight);
+            }
+
+            // map.put(page, pageHeight);
+            float xLeft = -1 * page * pageWidth;
+            float yTop = page * pageHeight;
+            float xRight = (-1 * page * pageWidth) + pageWidth;
+            float yBottom = (page + 1) * pageHeight;
+
+            for (int loopPage = page + 1; loopPage < pdfView.getPageCount(); loopPage++) {
+                float yLoopEnd = ((loopPage + 1f) * pageHeight) - 1f;
+                canvas.drawLine(xLeft,  yLoopEnd, xRight,  yLoopEnd, paint);
+                // canvas.drawLine(xLeft, yTop, xRight, yTop, paint);
+            }
+
+        }
+    }
+                    )
                     .enableAnnotationRendering(true)
                     .linkHandler(linkHandler).
                     enableAntialiasing(false)
@@ -108,7 +135,7 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
     public View getView() {
         return pdfView;
     }
-  
+
     @Override
     public void onMethodCall(MethodCall methodCall, Result result) {
         switch (methodCall.method) {
